@@ -21,6 +21,8 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai   # 让 update_data.py 的时间戳/天数按北京时间计算
     steps:
       - name: Checkout
         uses: actions/checkout@v4
