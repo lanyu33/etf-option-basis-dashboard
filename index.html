@@ -798,25 +798,62 @@ function doRefresh() {
   if (btn.disabled) return;
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>刷新中...';
-  fetch('/api/refresh', {method: 'POST'})
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
-      if (res.ok) {
-        applyData(res.data);
-        showToast('✓ 刷新成功 ' + (res.data.updated_at || ''), true);
-      } else {
-        showToast('✗ ' + (res.message || '刷新失败'), false);
-        if (res.data) applyData(res.data);
-      }
-    })
-    .catch(function() {
-      showToast('✗ 无法连接本地数据服务，请先启动 option_server.py', false);
+
+  // GitHub Pages 为纯静态托管，无本地后端。改为前端直连新浪行情接口：
+  // 新浪返回的是 JS 赋值语句（var hq_str_xxx="..."），可用 <script> 注入跨域加载。
+  // 现货 hq_str_shXXXXX 逗号分隔索引3=最新价；期权 hq_str_CON_OP_XXXXXX 索引1=最新价。
+  var rows = FALLBACK.rows;
+  var etfCodes = [], optCodes = [];
+  rows.forEach(function(r){
+    etfCodes.push('sh' + r.etf_code.split('.')[0]);
+    optCodes.push('CON_OP_' + r.call_code.split('.')[0]);
+    optCodes.push('CON_OP_' + r.put_code.split('.')[0]);
+  });
+  var all = etfCodes.concat(optCodes);
+
+  var s = document.createElement('script');
+  s.src = 'https://hq.sinajs.cn/list=' + all.join(',');
+  s.onload = function(){
+    try {
+      var newRows = rows.map(function(r){
+        var sh = 'sh' + r.etf_code.split('.')[0];
+        var cc = 'CON_OP_' + r.call_code.split('.')[0];
+        var pc = 'CON_OP_' + r.put_code.split('.')[0];
+        var spot = parseFloat(window['hq_str_' + sh].split(',')[3]);
+        var call = parseFloat(window['hq_str_' + cc].split(',')[1]);
+        var put  = parseFloat(window['hq_str_' + pc].split(',')[1]);
+        if (!(spot > 0) || !(call > 0) || !(put > 0)) throw new Error('行情数据异常');
+        var K = r.strike, days = r.days;
+        var synth = call - put + K;
+        var basis = synth - spot;
+        var basisPct = basis / spot * 100;
+        var annualPct = basisPct * 365 / days;
+        var nr = {};
+        for (var k in r) nr[k] = r[k];
+        nr.spot = spot; nr.call = call; nr.put = put;
+        nr.synthetic = synth; nr.basis = basis;
+        nr.basis_pct = basisPct; nr.annual_pct = annualPct;
+        return nr;
+      });
+      var d = {source: '新浪实时行情', updated_at: new Date().toLocaleString('zh-CN'), rows: newRows};
+      applyData(d);
+      showToast('✓ 新浪实时刷新成功 ' + d.updated_at, true);
+    } catch (e) {
+      showToast('✗ 解析行情失败：' + e.message + '，已用兜底数据', false);
       applyData(FALLBACK);
-    })
-    .finally(function() {
-      btn.disabled = false;
-      btn.innerHTML = '⟳ 刷新数据';
-    });
+    }
+    if (s.parentNode) s.parentNode.removeChild(s);
+    btn.disabled = false;
+    btn.innerHTML = '⟳ 刷新数据';
+  };
+  s.onerror = function(){
+    showToast('✗ 新浪接口不可达（可能跨域/Referer 受限），已用兜底数据', false);
+    applyData(FALLBACK);
+    if (s.parentNode) s.parentNode.removeChild(s);
+    btn.disabled = false;
+    btn.innerHTML = '⟳ 刷新数据';
+  };
+  document.head.appendChild(s);
 }
 
 function startService() {
