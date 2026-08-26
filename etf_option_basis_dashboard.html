@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ETF 期权合成期货贴水 Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --card-bg: #161b22;
+  --card-hover: #1c2330;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --green: #3fb950;
+  --green-dim: #238636;
+  --red: #f85149;
+  --blue: #58a6ff;
+  --purple: #bc8cff;
+  --orange: #f0883e;
+  --teal: #2dd4bf;
+  --yellow: #d29922;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  padding: 28px;
+  max-width: 75%;
+  min-width: 960px;
+  margin: 0 auto;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.header h1 { font-size: 27px; font-weight: 600; color: var(--text); }
+.header h1 span { color: var(--blue); }
+.header .meta { color: var(--text-muted); font-size: 14px; text-align: right; }
+.header .meta .ts { color: var(--green); font-weight: 600; font-size: 15px; }
+.btn-refresh {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 8px 22px;
+  background: linear-gradient(135deg, #238636, #2ea043);
+  border: 1px solid #2ea043;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.btn-refresh:hover { background: linear-gradient(135deg, #2ea043, #3fb950); box-shadow: 0 0 10px rgba(63,185,80,0.3); }
+.btn-refresh:disabled { background: #21262d; border-color: var(--border); color: var(--text-muted); cursor: not-allowed; box-shadow: none; }
+.btn-refresh .spin {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -2px;
+  animation: spin 0.8s linear infinite;
+}
+.btn-start {
+  display: inline-block;
+  margin-top: 6px;
+  margin-left: 8px;
+  padding: 8px 22px;
+  background: linear-gradient(135deg, #1f6feb, #388bfd);
+  border: 1px solid #388bfd;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.btn-start:hover { background: linear-gradient(135deg, #388bfd, #58a6ff); box-shadow: 0 0 10px rgba(56,139,253,0.3); }
+.btn-start:disabled { background: #21262d; border-color: var(--border); color: var(--text-muted); cursor: not-allowed; box-shadow: none; }
+.btn-start .spin {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -2px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  transition: background 0.2s;
+}
+.kpi-card:hover { background: var(--card-hover); }
+.kpi-label { color: var(--text-muted); font-size: 14px; margin-bottom: 6px; }
+.kpi-value { font-size: 29px; font-weight: 700; font-family: 'SF Mono', 'Consolas', monospace; }
+.kpi-sub { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+.section-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 26px 0 12px 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--blue);
+  color: var(--text);
+}
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  padding: 11px 28px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.tab-btn:hover { color: var(--text); border-color: #484f58; }
+.tab-btn.active {
+  background: var(--card-bg);
+  border-color: var(--blue);
+  color: var(--blue);
+  border-bottom: 2px solid var(--blue);
+}
+.tab-btn .etf-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.etf-overview {
+  display: flex;
+  gap: 24px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+.ov-item .ov-label { color: var(--text-muted); font-size: 13px; }
+.ov-item .ov-value { font-size: 24px; font-weight: 700; font-family: 'SF Mono', 'Consolas', monospace; }
+.ov-item .ov-value .unit { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+.month-block {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.month-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: #1b2129;
+  border-bottom: 1px solid var(--border);
+}
+.month-head .m-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.month-head .m-title span { color: var(--blue); margin-right: 6px; }
+.month-head .m-sub { color: var(--text-muted); font-size: 14px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  background: #21262d;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 9px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+tr:hover td { background: var(--card-hover); }
+tr.atm-row td { background: rgba(63,185,80,0.08); }
+tr.atm-row:hover td { background: rgba(63,185,80,0.14); }
+.atm-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(63,185,80,0.2);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.cell-green { color: var(--green); font-weight: 600; }
+.cell-red { color: var(--red); font-weight: 600; }
+.cell-neutral { color: var(--text-muted); }
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+.chart-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.chart-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.chart-box { width: 100%; height: 420px; }
+.notes {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-top: 20px;
+}
+.notes h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; color: var(--yellow); }
+.notes ul { list-style: none; padding-left: 0; }
+.notes li {
+  padding: 5px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding-left: 16px;
+  position: relative;
+}
+.notes li::before { content: '▸'; position: absolute; left: 0; color: var(--blue); }
+.formula {
+  display: inline-block;
+  background: #21262d;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  color: var(--green);
+  font-size: 14px;
+}
+.disclaimer {
+  margin-top: 20px;
+  padding: 12px 16px;
+  background: rgba(248,81,73,0.05);
+  border: 1px solid rgba(248,81,73,0.2);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+.toast.ok { background: rgba(46,160,67,0.15); border: 1px solid #2ea043; color: var(--green); }
+.toast.err { background: rgba(248,81,73,0.15); border: 1px solid var(--red); color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ETF 期权 <span>合成期货贴水</span> Dashboard</h1>
+  <div class="meta">
+    <div class="ts" id="updatedAt">—</div>
+    <div id="dataSource">数据加载中...</div>
+    <button class="btn-refresh" id="btnRefresh" onclick="doRefresh()">⟳ 刷新数据</button>
+    <button class="btn-start" id="btnStart" onclick="startService()">⚡ 启动服务</button>
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-label">覆盖品种</div>
+    <div class="kpi-value" id="kpiEtf" style="color:var(--blue)">4</div>
+    <div class="kpi-sub">50ETF / 300ETF / 500ETF / 科创50ETF</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">平值合约数</div>
+    <div class="kpi-value" id="kpiCount" style="color:var(--purple)">—</div>
+    <div class="kpi-sub" id="kpiCountSub">—</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">最大年化贴水</div>
+    <div class="kpi-value" id="kpiMax" style="color:var(--green)">—</div>
+    <div class="kpi-sub" id="kpiMaxSub">—</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">最小年化贴水</div>
+    <div class="kpi-value" id="kpiMin" style="color:var(--green)">—</div>
+    <div class="kpi-sub" id="kpiMinSub">—</div>
+  </div>
+</div>
+
+<div class="section-title">各标的各月份 — 全部合约贴水明细（点击 Tab 切换标的）</div>
+
+<!-- Tabs -->
+<div class="tabs" id="tabNav"></div>
+<div id="tabPanels"></div>
+
+<div class="charts-row">
+  <div class="chart-card">
+    <h3>平值合约各月份年化贴水率对比</h3>
+    <div id="chartBar" class="chart-box"></div>
+  </div>
+  <div class="chart-card">
+    <h3>贴水期限结构（平值年化贴水率 vs 剩余天数）</h3>
+    <div id="chartLine" class="chart-box"></div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>计算说明</h3>
+  <ul>
+    <li>合成期货价格 = <span class="formula">Call - Put + K</span>（认购-认沽平价，买入认购+卖出认沽 = 合成多头期货）</li>
+    <li>贴水 = 合成期货价格 - 现货价格（负值 = 贴水，正值 = 升水）</li>
+    <li>贴水率 = 贴水 / 现货价格 × 100%</li>
+    <li>年化贴水率 = 贴水率 × 365 / 剩余天数</li>
+    <li>每个行权价独立计算合成期货（该行权价的 Call - Put + K），行权价配对按同月份同行权价自动匹配</li>
+    <li>绿色高亮行 = 平值合约（行权价最接近现货价）</li>
+    <li>500ETF 行权价带"A"后缀表示经分红调整后的合约</li>
+    <li>500ETF 2027年3月合约新浪源有数据，Wind 源未返回（数据源差异）</li>
+    <li>贴水为负通常反映：市场看空预期 + 分红预期 + 做空需求旺盛</li>
+    <li>500ETF 年化贴水显著高于其他品种，隐含较高的分红预期或对冲需求</li>
+  </ul>
+</div>
+
+<div class="disclaimer">
+  免责声明：以上内容基于公开数据和量化分析，仅供参考，不构成投资建议。市场有风险，投资需谨慎。任何投资决策应结合个人风险承受能力、资金状况和投资目标独立判断，必要时咨询持牌专业机构。过往表现不预示未来收益。
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// 兜底数据 (2026-08-12 Wind 收盘, 服务器不可用时展示)
+var FALLBACK = {
+  source: "通达信 2026-08-26 盘中09:57(兜底)",
+  updated_at: "2026-08-26 09:57",
+  rows: [
+    {etf:"50ETF",etf_code:"510050.SH",spot:3.000,month:"9月",expiry:"2026-09-23",days:28,strike:3.000,call_code:"10010974.SH",call:0.0445,put_code:"10010983.SH",put:0.0520,synthetic:2.9925,basis:-0.0075,basis_pct:-0.2500,annual_pct:-3.26},
+    {etf:"50ETF",etf_code:"510050.SH",spot:3.000,month:"12月",expiry:"2026-12-23",days:119,strike:3.000,call_code:"10011429.SH",call:0.0906,put_code:"10011438.SH",put:0.1303,synthetic:2.9603,basis:-0.0397,basis_pct:-1.3233,annual_pct:-4.06},
+    {etf:"50ETF",etf_code:"510050.SH",spot:3.000,month:"2027年3月",expiry:"2027-03-24",days:210,strike:3.000,call_code:"10012166.SH",call:0.1169,put_code:"10012175.SH",put:0.1689,synthetic:2.9480,basis:-0.0520,basis_pct:-1.7333,annual_pct:-3.01},
+    {etf:"300ETF",etf_code:"510300.SH",spot:4.632,month:"9月",expiry:"2026-09-23",days:28,strike:4.600,call_code:"10010992.SH",call:0.1014,put_code:"10011001.SH",put:0.0871,synthetic:4.6143,basis:-0.0177,basis_pct:-0.3821,annual_pct:-4.98},
+    {etf:"300ETF",etf_code:"510300.SH",spot:4.632,month:"12月",expiry:"2026-12-23",days:119,strike:4.600,call_code:"10011445.SH",call:0.1682,put_code:"10011454.SH",put:0.2160,synthetic:4.5522,basis:-0.0798,basis_pct:-1.7228,annual_pct:-5.28},
+    {etf:"300ETF",etf_code:"510300.SH",spot:4.632,month:"2027年3月",expiry:"2027-03-24",days:210,strike:4.600,call_code:"10012183.SH",call:0.1920,put_code:"10012192.SH",put:0.2988,synthetic:4.4932,basis:-0.1388,basis_pct:-2.9965,annual_pct:-5.21},
+    {etf:"500ETF",etf_code:"510500.SH",spot:7.743,month:"9月",expiry:"2026-09-23",days:28,strike:7.750,call_code:"10012073.SH",call:0.2010,put_code:"10012082.SH",put:0.2846,synthetic:7.6664,basis:-0.0766,basis_pct:-0.9893,annual_pct:-12.90},
+    {etf:"500ETF",etf_code:"510500.SH",spot:7.743,month:"12月",expiry:"2026-12-23",days:119,strike:7.750,call_code:"10012091.SH",call:0.3350,put_code:"10012100.SH",put:0.5816,synthetic:7.5034,basis:-0.2396,basis_pct:-3.0944,annual_pct:-9.49},
+    {etf:"500ETF",etf_code:"510500.SH",spot:7.743,month:"2027年3月",expiry:"2027-03-24",days:210,strike:7.750,call_code:"10012203.SH",call:0.3765,put_code:"10012212.SH",put:0.8008,synthetic:7.3257,basis:-0.4173,basis_pct:-5.3894,annual_pct:-9.37},
+    {etf:"科创50ETF",etf_code:"588000.SH",spot:1.698,month:"9月",expiry:"2026-09-23",days:28,strike:1.700,call_code:"10011030.SH",call:0.0718,put_code:"10011039.SH",put:0.0816,synthetic:1.6902,basis:-0.0078,basis_pct:-0.4594,annual_pct:-5.99},
+    {etf:"科创50ETF",etf_code:"588000.SH",spot:1.698,month:"12月",expiry:"2026-12-23",days:119,strike:1.700,call_code:"10011486.SH",call:0.1322,put_code:"10011495.SH",put:0.1697,synthetic:1.6625,basis:-0.0355,basis_pct:-2.0907,annual_pct:-6.41},
+    {etf:"科创50ETF",etf_code:"588000.SH",spot:1.698,month:"2027年3月",expiry:"2027-03-24",days:210,strike:1.700,call_code:"10012253.SH",call:0.1697,put_code:"10012254.SH",put:0.2258,synthetic:1.6439,basis:-0.0541,basis_pct:-3.1861,annual_pct:-5.54},
+  ]
+};
+
+var data = FALLBACK;
+var chartBar = null;
+var chartLine = null;
+var currentTab = null;
+
+var etfColors = {"50ETF":"#58a6ff", "300ETF":"#bc8cff", "500ETF":"#f0883e", "科创50ETF":"#2dd4bf"};
+
+function fmt(v, d) {
+  if (v === null || v === undefined) return '-';
+  return Number(v).toFixed(d);
+}
+function basisColor(v) {
+  if (v < 0) return 'cell-green';
+  if (v > 0) return 'cell-red';
+  return 'cell-neutral';
+}
+function showToast(msg, ok) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (ok ? 'ok' : 'err');
+  setTimeout(function() { t.className = 'toast'; }, 3500);
+}
+
+// ---- Tabs ----
+function renderTabs() {
+  var etfs = data.etfs;
+  if (!etfs || !etfs.length) etfs = etfsFromRows(data.rows || []);
+  var rows = data.rows || [];
+  if (!etfs.length && !rows.length) return;
+
+  var nav = document.getElementById('tabNav');
+  var panels = document.getElementById('tabPanels');
+  var navHtml = '';
+  var panelsHtml = '';
+
+  // 总览 tab (平值合约贴水主表) - 始终在第一位
+  navHtml += '<button class="tab-btn active" data-idx="0" onclick="switchTab(0)">' +
+             '<span class="etf-dot" style="background:#d29922"></span>总览 · 平值</button>';
+  panelsHtml += '<div class="tab-panel active" id="panel-0">' + buildOverviewPanel(rows) + '</div>';
+
+  for (var i = 0; i < etfs.length; i++) {
+    var e = etfs[i];
+    var color = etfColors[e.name] || '#58a6ff';
+    navHtml += '<button class="tab-btn" data-idx="' + (i + 1) + '" onclick="switchTab(' + (i + 1) + ')">' +
+               '<span class="etf-dot" style="background:' + color + '"></span>' + e.name + '</button>';
+
+    panelsHtml += '<div class="tab-panel" id="panel-' + (i + 1) + '">' + buildEtfPanel(e) + '</div>';
+  }
+  nav.innerHTML = navHtml;
+  panels.innerHTML = panelsHtml;
+  currentTab = 0;
+}
+
+var sortState = {key: null, dir: 'asc'};
+
+function thSort(label, key, color) {
+  var arrow = '';
+  if (sortState.key === key) arrow = (sortState.dir === 'asc') ? ' ▲' : ' ▼';
+  var style = 'cursor:pointer;user-select:none;white-space:nowrap';
+  if (color) style += ';color:' + color;
+  if (sortState.key === key) style += ';color:' + (color || 'var(--blue)') + ';font-weight:700';
+  return '<th style="' + style + '" onclick="sortOverview(\'' + key + '\')" title="点击排序">' + label + arrow + '</th>';
+}
+
+function sortOverview(key) {
+  if (sortState.key === key) {
+    sortState.dir = (sortState.dir === 'asc') ? 'desc' : 'asc';
+  } else {
+    sortState.key = key;
+    sortState.dir = 'asc';
+  }
+  var panel = document.getElementById('panel-0');
+  if (panel) panel.innerHTML = buildOverviewPanel(data.rows);
+}
+
+function buildOverviewPanel(rows) {
+  if (!rows || !rows.length) {
+    return '<div class="month-block"><div style="padding:20px;color:var(--text-muted)">暂无平值数据，请点击右上角刷新</div></div>';
+  }
+  // 按当前排序状态排序(副本, 不改原数据)
+  var sorted = rows.slice();
+  if (sortState.key) {
+    sorted.sort(function(a, b) {
+      var va = a[sortState.key], vb = b[sortState.key];
+      var cmp;
+      if (typeof va === 'number' && typeof vb === 'number') {
+        cmp = va - vb;
+      } else {
+        cmp = String(va).localeCompare(String(vb), 'zh-Hans-CN', {numeric: true});
+      }
+      return (sortState.dir === 'asc') ? cmp : -cmp;
+    });
+  }
+  var html = '<div class="month-block">';
+  html += '<div class="month-head">';
+  html += '<div class="m-title"><span>平值合约</span>合成期货贴水总览</div>';
+  html += '<div class="m-sub">' + rows.length + ' 条 · 各标的各到期月份平值 · 点击表头排序</div>';
+  html += '</div>';
+  html += '<div class="table-wrap"><table>';
+  html += '<thead><tr>';
+  html += thSort('ETF品种', 'etf') + thSort('标的代码', 'etf_code') + thSort('现货价', 'spot') + thSort('月份', 'month') + thSort('到期日', 'expiry') + thSort('剩余天数', 'days') + thSort('行权价', 'strike') + thSort('Call价', 'call') + thSort('Put价', 'put') + thSort('合成期货', 'synthetic') + thSort('贴水', 'basis') + thSort('贴水率', 'basis_pct') + thSort('年化贴水率', 'annual_pct');
+  html += thSort('买购权利金', 'call_premium', 'var(--blue)') + thSort('卖沽保证金', 'put_margin', 'var(--orange)') + thSort('合计占用', 'margin_total', 'var(--yellow)');
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < sorted.length; i++) {
+    var d = sorted[i];
+    var color = etfColors[d.etf] || '#58a6ff';
+    html += '<tr>';
+    html += '<td><span class="etf-dot" style="background:' + color + ';display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px"></span><span style="font-weight:600">' + d.etf + '</span></td>';
+    html += '<td style="color:var(--text-muted)">' + d.etf_code + '</td>';
+    html += '<td>' + fmt(d.spot, 3) + '</td>';
+    html += '<td>' + d.month + '</td>';
+    html += '<td style="color:var(--text-muted)">' + d.expiry + '</td>';
+    html += '<td>' + d.days + '</td>';
+    html += '<td>' + fmt(d.strike, 3) + '</td>';
+    html += '<td style="color:var(--red)">' + fmt(d.call, 4) + '</td>';
+    html += '<td style="color:var(--green)">' + fmt(d.put, 4) + '</td>';
+    html += '<td style="font-weight:600">' + fmt(d.synthetic, 4) + '</td>';
+    html += '<td class="' + basisColor(d.basis) + '">' + fmt(d.basis, 4) + '</td>';
+    html += '<td class="' + basisColor(d.basis_pct) + '">' + fmt(d.basis_pct, 2) + '%</td>';
+    html += '<td class="' + basisColor(d.annual_pct) + '" style="font-weight:700">' + fmt(d.annual_pct, 2) + '%</td>';
+    html += '<td style="color:var(--blue)">' + fmt(d.call_premium, 0) + '</td>';
+    html += '<td style="color:var(--orange)">' + fmt(d.put_margin, 0) + '</td>';
+    html += '<td style="color:var(--yellow);font-weight:700">' + fmt(d.margin_total, 0) + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  html += '</div>';
+  return html;
+}
+
+function buildEtfPanel(e) {
+  var totalStrikes = 0;
+  for (var m = 0; m < e.months.length; m++) totalStrikes += e.months[m].strikes.length;
+  var color = etfColors[e.name] || '#58a6ff';
+
+  var html = '<div class="etf-overview">';
+  html += '<div class="ov-item"><div class="ov-label">标的</div><div class="ov-value" style="color:' + color + '">' + e.name + '</div></div>';
+  html += '<div class="ov-item"><div class="ov-label">代码</div><div class="ov-value" style="font-size:18px;color:var(--text-muted)">' + e.code + '</div></div>';
+  html += '<div class="ov-item"><div class="ov-label">现货价</div><div class="ov-value">' + fmt(e.spot, 3) + ' <span class="unit">元</span></div></div>';
+  html += '<div class="ov-item"><div class="ov-label">到期月份</div><div class="ov-value" style="font-size:18px">' + e.months.length + ' <span class="unit">个月</span></div></div>';
+  html += '<div class="ov-item"><div class="ov-label">合约行权价档</div><div class="ov-value" style="font-size:18px">' + totalStrikes + ' <span class="unit">档</span></div></div>';
+  html += '</div>';
+
+  for (var m = 0; m < e.months.length; m++) {
+    var mo = e.months[m];
+    var rows = mo.strikes;
+    html += '<div class="month-block">';
+    html += '<div class="month-head">';
+    html += '<div class="m-title"><span>' + mo.month + '</span>到期 ' + mo.expiry + '</div>';
+    html += '<div class="m-sub">剩余 ' + mo.days + ' 天 · ' + rows.length + ' 档行权价</div>';
+    html += '</div>';
+    html += '<div class="table-wrap"><table>';
+    html += '<thead><tr>';
+    html += '<th>行权价</th><th>Call价</th><th>Put价</th><th>合成期货</th><th>贴水</th><th>贴水率</th><th>年化贴水率</th>';
+    html += '<th style="color:var(--blue)">买购权利金</th><th style="color:var(--orange)">卖沽保证金</th><th style="color:var(--yellow)">合计占用</th>';
+    html += '<th style="font-weight:400;color:var(--text-muted)">Call代码</th><th style="font-weight:400;color:var(--text-muted)">Put代码</th>';
+    html += '</tr></thead><tbody>';
+
+    // 按行权价升序显示
+    for (var r = 0; r < rows.length; r++) {
+      var d = rows[r];
+      var atmCls = d.atm ? ' atm-row' : '';
+      var badge = d.atm ? '<span class="atm-badge">ATM</span>' : '';
+      html += '<tr class="' + atmCls + '">';
+      html += '<td style="font-weight:600">' + fmt(d.strike, 3) + badge + '</td>';
+      html += '<td style="color:var(--red)">' + fmt(d.call, 4) + '</td>';
+      html += '<td style="color:var(--green)">' + fmt(d.put, 4) + '</td>';
+      html += '<td style="font-weight:600">' + fmt(d.synthetic, 4) + '</td>';
+      html += '<td class="' + basisColor(d.basis) + '">' + fmt(d.basis, 4) + '</td>';
+      html += '<td class="' + basisColor(d.basis_pct) + '">' + fmt(d.basis_pct, 2) + '%</td>';
+      html += '<td class="' + basisColor(d.annual_pct) + '" style="font-weight:700">' + fmt(d.annual_pct, 2) + '%</td>';
+      html += '<td style="color:var(--blue)">' + fmt(d.call_premium, 0) + '</td>';
+      html += '<td style="color:var(--orange)">' + fmt(d.put_margin, 0) + '</td>';
+      html += '<td style="color:var(--yellow);font-weight:700">' + fmt(d.margin_total, 0) + '</td>';
+      html += '<td style="color:var(--text-muted);font-size:12.5px">' + d.call_code + '</td>';
+      html += '<td style="color:var(--text-muted);font-size:12.5px">' + d.put_code + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    html += '</div>';
+  }
+  return html;
+}
+
+function switchTab(idx) {
+  var btns = document.querySelectorAll('#tabNav .tab-btn');
+  var panels = document.querySelectorAll('#tabPanels .tab-panel');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].className = 'tab-btn' + (i === idx ? ' active' : '');
+    panels[i].className = 'tab-panel' + (i === idx ? ' active' : '');
+  }
+  currentTab = idx;
+}
+
+function etfsFromRows(rows) {
+  var etfs = [];
+  var seen = {};
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!seen[r.etf]) {
+      seen[r.etf] = {name: r.etf, code: r.etf_code, spot: r.spot, months: []};
+      etfs.push(seen[r.etf]);
+    }
+    seen[r.etf].months.push({
+      month: r.month, expiry: r.expiry, days: r.days,
+      strikes: [{strike: r.strike, call_code: r.call_code, call: r.call, put_code: r.put_code, put: r.put, synthetic: r.synthetic, basis: r.basis, basis_pct: r.basis_pct, annual_pct: r.annual_pct, atm: true}]
+    });
+  }
+  return etfs;
+}
+
+function calcMargin(d) {
+  // 补齐 买购权利金/卖沽保证金/合计占用 (兜底数据无此字段时现场算)
+  if (d.call_premium !== undefined && d.put_margin !== undefined && d.margin_total !== undefined) return;
+  var u = 10000;
+  if (d.etf === '500ETF' && Math.abs(d.strike - Math.round(d.strike * 20) / 20) > 1e-6) u = 10180;
+  var spot = d.spot || 0;
+  var otm = Math.max(spot - d.strike, 0);
+  var base = d.put + Math.max(0.12 * spot - otm, 0.07 * d.strike);
+  var pm = Math.min(base, d.strike) * u;
+  var cp = d.call * u;
+  d.unit = u;
+  d.call_premium = Math.round(cp);
+  d.put_margin = Math.round(pm);
+  d.margin_total = Math.round(cp + pm);
+}
+
+function ensureMargin(data) {
+  (data.rows || []).forEach(calcMargin);
+  (data.etfs || []).forEach(function(e) {
+    (e.months || []).forEach(function(m) {
+      (m.strikes || []).forEach(function(s) {
+        if (s.etf === undefined) s.etf = e.name;
+        if (s.spot === undefined) s.spot = e.spot;
+        calcMargin(s);
+      });
+    });
+  });
+  return data;
+}
+
+// ---- KPI ----
+function renderKpi() {
+  var rows = data.rows || [];
+  document.getElementById('kpiCount').textContent = rows.length;
+  document.getElementById('kpiCountSub').textContent = '平值 Call+Put 对数';
+  if (rows.length === 0) return;
+  var maxRow = rows[0], minRow = rows[0];
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i].annual_pct < maxRow.annual_pct) maxRow = rows[i];
+    if (rows[i].annual_pct > minRow.annual_pct) minRow = rows[i];
+  }
+  document.getElementById('kpiMax').textContent = fmt(maxRow.annual_pct, 2) + '%';
+  document.getElementById('kpiMaxSub').textContent = maxRow.etf + ' ' + maxRow.month + '合约（剩余' + maxRow.days + '天）';
+  document.getElementById('kpiMin').textContent = fmt(minRow.annual_pct, 2) + '%';
+  document.getElementById('kpiMinSub').textContent = minRow.etf + ' ' + minRow.month + '合约（剩余' + minRow.days + '天）';
+}
+
+// ---- Charts ----
+function renderCharts() {
+  var rows = data.rows || [];
+  var etfOrder = ["50ETF", "300ETF", "500ETF", "科创50ETF"];
+  var monthOrder = ["8月", "9月", "12月", "2027年3月"];
+
+  var barData = [];
+  var yLabels = [];
+  for (var mi = monthOrder.length - 1; mi >= 0; mi--) {
+    var m = monthOrder[mi];
+    for (var ei = 0; ei < etfOrder.length; ei++) {
+      var e = etfOrder[ei];
+      var found = null;
+      for (var k = 0; k < rows.length; k++) {
+        if (rows[k].etf === e && rows[k].month === m) { found = rows[k]; break; }
+      }
+      if (found) {
+        yLabels.push(e + ' ' + m);
+        barData.push({value: found.annual_pct, itemStyle: {color: etfColors[e]}});
+      }
+    }
+  }
+
+  if (!chartBar) chartBar = echarts.init(document.getElementById('chartBar'));
+  chartBar.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {type: 'shadow'},
+      formatter: function(params) {
+        var p = params[0];
+        return p.name + '<br/>年化贴水率: <b style="color:' + (p.value < 0 ? '#3fb950' : '#f85149') + '">' + p.value.toFixed(2) + '%</b>';
+      }
+    },
+    grid: {left: '15%', right: '12%', top: '5%', bottom: '5%'},
+    xAxis: {
+      type: 'value',
+      name: '年化贴水率(%)',
+      nameTextStyle: {color: '#8b949e', fontSize: 13},
+      axisLabel: {color: '#8b949e', formatter: '{value}%'},
+      splitLine: {lineStyle: {color: '#30363d'}},
+      axisLine: {lineStyle: {color: '#30363d'}}
+    },
+    yAxis: {
+      type: 'category',
+      data: yLabels,
+      axisLabel: {color: '#e6edf3', fontSize: 13},
+      axisLine: {lineStyle: {color: '#30363d'}},
+      splitLine: {show: false}
+    },
+    series: [{
+      type: 'bar',
+      data: barData,
+      barWidth: '60%',
+      label: {
+        show: true,
+        position: 'right',
+        color: '#ffffff',
+        fontWeight: 'bold',
+        fontSize: 13,
+        formatter: function(p) { return p.value.toFixed(2) + '%'; }
+      }
+    }]
+  }, true);
+
+  var series = [];
+  for (var ei2 = 0; ei2 < etfOrder.length; ei2++) {
+    var e2 = etfOrder[ei2];
+    var pts = [];
+    for (var k2 = 0; k2 < rows.length; k2++) {
+      if (rows[k2].etf === e2) {
+        pts.push([rows[k2].days, rows[k2].annual_pct]);
+      }
+    }
+    pts.sort(function(a, b) { return a[0] - b[0]; });
+    series.push({
+      name: e2,
+      type: 'line',
+      smooth: false,
+      symbol: 'circle',
+      symbolSize: 8,
+      lineStyle: {width: 2, color: etfColors[e2]},
+      itemStyle: {color: etfColors[e2]},
+      data: pts
+    });
+  }
+
+  if (!chartLine) chartLine = echarts.init(document.getElementById('chartLine'));
+  chartLine.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        var s = '';
+        for (var i = 0; i < params.length; i++) {
+          var p = params[i];
+          s += p.marker + p.seriesName + ' (T=' + p.value[0] + '天): <b style="color:' + (p.value[1] < 0 ? '#3fb950' : '#f85149') + '">' + p.value[1].toFixed(2) + '%</b><br/>';
+        }
+        return s;
+      }
+    },
+    legend: {data: etfOrder, textStyle: {color: '#e6edf3', fontSize: 14}, top: 0},
+    grid: {left: '8%', right: '5%', top: '15%', bottom: '10%'},
+    xAxis: {
+      type: 'value',
+      name: '剩余天数',
+      nameTextStyle: {color: '#8b949e', fontSize: 13},
+      axisLabel: {color: '#8b949e', fontSize: 13},
+      splitLine: {lineStyle: {color: '#30363d'}},
+      axisLine: {lineStyle: {color: '#30363d'}},
+      min: 0,
+      max: 250
+    },
+    yAxis: {
+      type: 'value',
+      name: '年化贴水率(%)',
+      nameTextStyle: {color: '#8b949e', fontSize: 13},
+      axisLabel: {color: '#8b949e', fontSize: 13, formatter: '{value}%'},
+      splitLine: {lineStyle: {color: '#30363d'}},
+      axisLine: {lineStyle: {color: '#30363d'}},
+      max: 0
+    },
+    series: series
+  }, true);
+}
+
+// ---- Main ----
+function applyData(newData) {
+  data = ensureMargin(newData || FALLBACK);
+  var ts = document.getElementById('updatedAt');
+  ts.textContent = data.updated_at || '—';
+  var ds = document.getElementById('dataSource');
+  ds.textContent = '数据来源：' + (data.source || '—');
+  renderTabs();
+  renderKpi();
+  renderCharts();
+}
+
+function loadData() {
+  fetch('/api/data')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { applyData(d); })
+    .catch(function() {
+      applyData(FALLBACK);
+      document.getElementById('dataSource').textContent = '数据来源：Wind 兜底（本地服务未启动）';
+    });
+}
+
+function doRefresh() {
+  var btn = document.getElementById('btnRefresh');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>刷新中...';
+  fetch('/api/refresh', {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res.ok) {
+        applyData(res.data);
+        showToast('✓ 刷新成功 ' + (res.data.updated_at || ''), true);
+      } else {
+        showToast('✗ ' + (res.message || '刷新失败'), false);
+        if (res.data) applyData(res.data);
+      }
+    })
+    .catch(function() {
+      showToast('✗ 无法连接本地数据服务，请先启动 option_server.py', false);
+      applyData(FALLBACK);
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.innerHTML = '⟳ 刷新数据';
+    });
+}
+
+function startService() {
+  var btn = document.getElementById('btnStart');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>启动中...';
+  var ctrl = new AbortController();
+  var timer = setTimeout(function() { ctrl.abort(); }, 15000);
+  fetch('http://127.0.0.1:8900/api/start', {method: 'POST', signal: ctrl.signal})
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res.ok) {
+        showToast('✓ ' + res.message, true);
+        setTimeout(loadData, 800);
+      } else {
+        showToast('✗ ' + (res.message || '启动失败'), false);
+      }
+    })
+    .catch(function(err) {
+      if (err && err.name === 'AbortError') {
+        showToast('✗ 启动超时(15s)，请双击「启动服务.vbs」或让我重启', false);
+      } else {
+        showToast('✗ 启动器(8900)未响应，请双击「启动服务.vbs」或让我重启', false);
+      }
+    })
+    .finally(function() {
+      clearTimeout(timer);
+      btn.disabled = false;
+      btn.innerHTML = '⚡ 启动服务';
+    });
+}
+
+loadData();
+</script>
+</body>
+</html>

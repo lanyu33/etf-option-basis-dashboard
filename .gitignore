@@ -1,0 +1,12 @@
+# WorkBuddy 本地记忆/沙盒数据（含敏感信息，禁止上传）
+.workbuddy/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 本地构建产物
+dist/
+
+# 仅本机使用的启动脚本
+*.vbs
