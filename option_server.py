@@ -65,7 +65,7 @@ FALLBACK_DATA = {
 def get_spots():
     """批量获取 4 个 ETF 现货价 (新浪 hq, 毫秒级)"""
     url = "https://hq.sinajs.cn/list=" + ",".join(e["sh"] for e in ETFS)
-    r = requests.get(url, headers=HEADERS, timeout=10)
+    r = requests.get(url, headers=HEADERS, timeout=20)
     r.encoding = "gbk"
     spots = {}
     for line in r.text.strip().split("\n"):
@@ -82,7 +82,7 @@ def get_spots():
 def get_months(symbol_name):
     """获取合约月份列表 ['202608','202609','202612','202703']"""
     url = "https://stock.finance.sina.com.cn/futures/api/openapi.php/StockOptionService.getStockName"
-    r = requests.get(url, params={"exchange": "null", "cate": symbol_name}, timeout=10)
+    r = requests.get(url, params={"exchange": "null", "cate": symbol_name}, timeout=20)
     j = r.json()
     months = j["result"]["data"]["contractMonth"]
     seen = []
@@ -96,7 +96,7 @@ def get_months(symbol_name):
 def get_contract_codes(underlying, yymm, direction):
     """direction: 'UP'=认购 'DOWN'=认沽; 返回代码列表(按行权价升序)"""
     url = "https://hq.sinajs.cn/list=OP_{0}_{1}{2}".format(direction, underlying, yymm)
-    r = requests.get(url, headers=HEADERS, timeout=10)
+    r = requests.get(url, headers=HEADERS, timeout=20)
     r.encoding = "gbk"
     text = r.text.strip()
     codes = []
@@ -115,7 +115,7 @@ def get_quotes(codes):
     if not codes:
         return {}
     url = "https://hq.sinajs.cn/list=" + ",".join("CON_OP_" + c for c in codes)
-    r = requests.get(url, headers=HEADERS, timeout=10)
+    r = requests.get(url, headers=HEADERS, timeout=20)
     r.encoding = "gbk"
     quotes = {}
     for line in r.text.strip().split("\n"):
