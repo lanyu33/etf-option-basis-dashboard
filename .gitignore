@@ -10,3 +10,15 @@ dist/
 
 # 仅本机使用的启动脚本
 *.vbs
+
+# 本地自动刷新驱动（含 GitHub PAT，严禁上传）
+gh_dispatch.ps1
+autorefresh.log
+schtasks_*.log
+ps_tool_test.log
+
+# 临时诊断脚本
+_check_state.py
+_poll*.py
+_cron_test.py
+_api_push*.py
